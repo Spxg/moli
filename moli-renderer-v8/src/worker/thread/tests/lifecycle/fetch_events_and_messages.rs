@@ -258,6 +258,7 @@ async fn service_worker_fetch_handler_throw_without_respond_with_still_falls_bac
                 );
             }
             WorkerToParentMessage::Console(_)
+            | WorkerToParentMessage::RuntimeException(_)
             | WorkerToParentMessage::RuntimeInspectorMessages(_)
             | WorkerToParentMessage::SubresourceNetwork(_)
             | WorkerToParentMessage::PendingSubresourceFetch(_)
@@ -444,6 +445,7 @@ async fn service_worker_fetch_respond_with_readable_stream_body_posts_stream_chu
             | WorkerToParentMessage::WebSocketLifecycle(_)
             | WorkerToParentMessage::WebSocketFrame(_)
             | WorkerToParentMessage::Console(_)
+            | WorkerToParentMessage::RuntimeException(_)
             | WorkerToParentMessage::RuntimeInspectorMessages(_)
             | WorkerToParentMessage::ServiceWorkerLifecycleCompleted(_)
             | WorkerToParentMessage::ServiceWorkerMessageCompleted(_)
@@ -1202,6 +1204,7 @@ async fn service_worker_fetch_event_request_signal_aborts_with_parent_reason() {
         match message {
             WorkerToParentMessage::ServiceWorkerFetchCompleted(completion) => break completion,
             WorkerToParentMessage::Console(_)
+            | WorkerToParentMessage::RuntimeException(_)
             | WorkerToParentMessage::RuntimeInspectorMessages(_)
             | WorkerToParentMessage::SubresourceNetwork(_)
             | WorkerToParentMessage::PendingSubresourceFetch(_)
@@ -1420,6 +1423,7 @@ async fn service_worker_fetch_respond_with_keeps_response_when_handler_throws_af
                 );
             }
             WorkerToParentMessage::Console(_)
+            | WorkerToParentMessage::RuntimeException(_)
             | WorkerToParentMessage::RuntimeInspectorMessages(_)
             | WorkerToParentMessage::SubresourceNetwork(_)
             | WorkerToParentMessage::PendingSubresourceFetch(_)

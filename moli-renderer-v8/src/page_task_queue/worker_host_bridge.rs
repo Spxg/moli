@@ -66,6 +66,7 @@ pub(crate) fn is_worker_host_bridge_message(message: &WorkerToParentMessage) -> 
             | WorkerToParentMessage::WebSocketLifecycle(_)
             | WorkerToParentMessage::WebSocketFrame(_)
             | WorkerToParentMessage::Console(_)
+            | WorkerToParentMessage::RuntimeException(_)
     )
 }
 

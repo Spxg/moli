@@ -842,6 +842,7 @@ fn spawn_parent_message_pump(
                         filename,
                         lineno,
                         colno,
+                        stack,
                         event_kind,
                         phase,
                         source,
@@ -849,13 +850,27 @@ fn spawn_parent_message_pump(
                         service.enqueue_target_exception_message(
                             version_id,
                             source_run.clone(),
-                            message,
-                            filename,
-                            lineno,
-                            colno,
+                            crate::runtime::RuntimeExceptionSnapshot {
+                                message,
+                                filename,
+                                lineno,
+                                colno,
+                                stack,
+                                handled: false,
+                            },
                             event_kind,
                             phase,
                             source,
+                        );
+                    }
+                    WorkerToParentMessage::RuntimeException(exception) => {
+                        service.enqueue_target_exception_message(
+                            version_id,
+                            source_run.clone(),
+                            exception,
+                            crate::worker::WorkerParentErrorEventKind::ErrorEvent,
+                            crate::worker::WorkerErrorPhase::Runtime,
+                            crate::worker::WorkerErrorSource::Runtime,
                         );
                     }
                     WorkerToParentMessage::Console(message) => {

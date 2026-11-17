@@ -46,6 +46,7 @@ pub(crate) fn dispatch_worker_event<'s>(
         | WorkerToParentMessage::WebSocketLifecycle(_)
         | WorkerToParentMessage::WebSocketFrame(_)
         | WorkerToParentMessage::Console(_)
+        | WorkerToParentMessage::RuntimeException(_)
         | WorkerToParentMessage::RuntimeInspectorMessages(_)
         | WorkerToParentMessage::ServiceWorkerLifecycleCompleted(_)
         | WorkerToParentMessage::ServiceWorkerFetchCompleted(_)

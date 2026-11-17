@@ -106,6 +106,7 @@ pub(crate) fn dispatch_window_report_error_message<'s>(
     let message_value = v8_string(scope, message)
         .ok_or_else(|| "failed to allocate reportError message".to_owned())?;
     let reason = v8::Exception::error(scope, message_value);
+    crate::exception_reporting::mark_synthetic_reporting_exception(scope, reason);
     if let Some(filename) = filename
         && let Some(filename_value) = v8_string(scope, filename)
         && let Ok(error_object) = v8::Local::<v8::Object>::try_from(reason)
@@ -136,19 +137,57 @@ pub(crate) fn dispatch_window_error_event_with_details<'s>(
     colno: u32,
     error_value: Option<v8::Local<'s, v8::Value>>,
 ) -> std::result::Result<(), String> {
+    dispatch_window_error_event(
+        scope,
+        host_ptr,
+        crate::runtime::RuntimeExceptionSnapshot {
+            message: message.to_owned(),
+            filename: filename.to_owned(),
+            lineno,
+            colno,
+            stack: None,
+            handled: false,
+        },
+        error_value,
+        true,
+    )
+}
+
+pub(crate) fn dispatch_window_error_event_with_snapshot<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    host_ptr: *mut PageScriptHost,
+    snapshot: crate::runtime::RuntimeExceptionSnapshot,
+    error_value: Option<v8::Local<'s, v8::Value>>,
+) -> std::result::Result<(), String> {
+    dispatch_window_error_event(scope, host_ptr, snapshot, error_value, false)
+}
+
+fn dispatch_window_error_event<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    host_ptr: *mut PageScriptHost,
+    mut snapshot: crate::runtime::RuntimeExceptionSnapshot,
+    error_value: Option<v8::Local<'s, v8::Value>>,
+    capture_stack: bool,
+) -> std::result::Result<(), String> {
     ensure_window_reflecting_body_onerror_handler(scope);
     let error_value = error_value.unwrap_or_else(|| v8::null(scope).into());
-
-    let message = v8_string(scope, message)
+    let message = v8_string(scope, &snapshot.message)
         .map(|s| s.into())
         .unwrap_or_else(|| v8::null(scope).into());
-    let filename = v8_string(scope, filename)
+    let filename = v8_string(scope, &snapshot.filename)
         .map(|s| s.into())
         .unwrap_or_else(|| v8::null(scope).into());
-    let init =
-        ErrorEventInitDeclaration::new(true, false, message, filename, lineno, colno, error_value)
-            .bind(scope)
-            .expect("ErrorEvent init declaration should bind");
+    let init = ErrorEventInitDeclaration::new(
+        true,
+        false,
+        message,
+        filename,
+        snapshot.lineno,
+        snapshot.colno,
+        error_value,
+    )
+    .bind(scope)
+    .expect("ErrorEvent init declaration should bind");
 
     let event_type = v8str(scope, "error");
     let event = super::super::exposed_interfaces::ensure_intrinsic_interface_constructor(
@@ -162,26 +201,36 @@ pub(crate) fn dispatch_window_error_event_with_details<'s>(
     };
     mark_event_trusted(scope, event);
 
-    let runtime = unsafe { &mut *host_ptr };
-    if let Some(child_handle) =
-        crate::context_bootstrap::child_browsing_context_handle_for_current_realm_scope(scope)
     {
-        runtime.dispatch_child_window_event(scope, child_handle, "error", event);
-        return Ok(());
+        let runtime = unsafe { &mut *host_ptr };
+        if let Some(child_handle) =
+            crate::context_bootstrap::child_browsing_context_handle_for_current_realm_scope(scope)
+        {
+            runtime.dispatch_child_window_event(scope, child_handle, "error", event);
+        } else {
+            runtime.dispatch_public_event(scope, host_ptr, EventTargetHandle::Window, event)?;
+            let global = scope.get_current_context().global(scope);
+            let global_value: v8::Local<'_, v8::Value> = global.into();
+            let _ = crate::context_bootstrap::event_backing(scope, event).set(
+                scope,
+                v8str(scope, "target").into(),
+                global_value,
+            );
+            let _ = crate::context_bootstrap::event_backing(scope, event).set(
+                scope,
+                v8str(scope, "currentTarget").into(),
+                global_value,
+            );
+        }
     }
-    runtime.dispatch_public_event(scope, host_ptr, EventTargetHandle::Window, event)?;
-
-    let global = scope.get_current_context().global(scope);
-    let global_value: v8::Local<'_, v8::Value> = global.into();
-    let _ = crate::context_bootstrap::event_backing(scope, event).set(
-        scope,
-        v8str(scope, "target").into(),
-        global_value,
-    );
-    let _ = crate::context_bootstrap::event_backing(scope, event).set(
-        scope,
-        v8str(scope, "currentTarget").into(),
-        global_value,
+    // Read the browser-owned cancellation state, not an author-shadowed property.
+    snapshot.handled =
+        crate::context_bootstrap::event_bool_attribute(scope, event, "defaultPrevented");
+    if !snapshot.handled && capture_stack {
+        snapshot.stack = crate::exception_reporting::exception_stack_snapshot(scope, error_value);
+    }
+    unsafe { &*host_ptr }.append_live_turn_observation(
+        crate::runtime::RendererProtocolObservation::RuntimeException(snapshot),
     );
     Ok(())
 }

@@ -17,7 +17,7 @@ use crate::{
         RendererServiceWorkerExceptionMessage, RendererServiceWorkerFetchDiagnostic,
         RendererServiceWorkerRunIdentity, RendererServiceWorkerTargetEvent,
         RendererServiceWorkerTargetInfo, RendererServiceWorkerVersionStatus,
-        RendererWorkerContextRuntime,
+        RendererWorkerContextRuntime, RuntimeExceptionSnapshot,
     },
     types::{
         AsyncSubresourceNetworkContext, ServiceWorkerClientMessageCompletion,
@@ -540,6 +540,7 @@ impl ServiceWorkerRuntimeState {
         version_id: ServiceWorkerVersionId,
         run: RendererServiceWorkerRunIdentity,
         message: RendererServiceWorkerExceptionMessage,
+        exception: RuntimeExceptionSnapshot,
     ) -> bool {
         if !self.service_worker_target_infos.contains_key(&version_id) {
             return false;
@@ -551,13 +552,14 @@ impl ServiceWorkerRuntimeState {
         else {
             return false;
         };
-        self.target_output_streams.publish(
+        self.target_output_streams.publish_exception(
             version_id,
             RendererServiceWorkerTargetEvent::Exception {
                 version_id: version_id.as_u64(),
                 run,
                 message,
             },
+            exception,
         );
         true
     }

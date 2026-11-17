@@ -402,6 +402,7 @@ pub use self::page_surface::{
     RendererSharedWorkerTargetInfo, RendererStyleSheetHeader, RendererStyleSheetInventoryUpdate,
     RendererStyleSheetPayload, RendererSyntheticResponseBody, RendererTextSearchMatch,
     RendererTouchPoint, RendererWindowDocumentSource, RuntimeConsoleMessageSnapshot,
+    RuntimeExceptionSnapshot,
 };
 pub(crate) use self::page_surface::{
     RendererCommandTurnOutputRecorder, RendererDevToolsSessionOutputHost,

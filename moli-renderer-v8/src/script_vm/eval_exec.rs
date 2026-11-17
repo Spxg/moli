@@ -8,7 +8,7 @@ use super::ScriptVm;
 use super::native_module::RuntimeModuleScriptGraphStart;
 use super::post_parse::dynamic_script_execute_is_runnable_before_dom_content_loaded;
 use super::runtime_bindings::perform_microtask_checkpoint_and_report_pending_promise_rejections;
-use crate::context_bootstrap::dispatch_window_error_event_with_details;
+use crate::context_bootstrap::dispatch_window_error_event_with_snapshot;
 use crate::dynamic_script_owner::{DynamicScriptOwnerPoll, DynamicScriptRunnable};
 use crate::exception_reporting::{
     V8ExceptionReport, build_event_handler_exception_report, uncaught_script_error,
@@ -147,13 +147,10 @@ fn report_script_exception_to_current_window(
         .exception
         .as_ref()
         .map(|exception| v8::Local::new(scope, exception));
-    let _ = dispatch_window_error_event_with_details(
+    let _ = dispatch_window_error_event_with_snapshot(
         scope,
         host_ptr,
-        &report.summary,
-        report.source.as_deref().unwrap_or(""),
-        report.line.unwrap_or(0) as u32,
-        report.column.unwrap_or(0) as u32,
+        report.runtime_snapshot(false),
         error_value,
     );
 }

@@ -151,6 +151,11 @@ fn flush_promise_rejection_state(
             .realm
             .with_current_scope(scope, host_ptr, |scope, dispatch_scope| {
                 let promise = v8::Local::new(scope, &rejection.promise);
+                // Internal promise owners may mark a promise handled directly,
+                // without attaching a JS reaction or invoking the V8 callback.
+                if promise.has_handler() {
+                    return;
+                }
                 let reason = rejection
                     .reason
                     .as_ref()
@@ -170,8 +175,26 @@ fn flush_promise_rejection_state(
                 if !promise.has_handler() {
                     remember_reported_promise_rejection(&state.reported, rejection.clone());
                 }
-                if matches!(outcome, Ok(true)) {
-                    log_unhandled_promise_rejection(scope, reason);
+                if let Ok(allows_default) = outcome {
+                    let reason = reason.unwrap_or_else(|| v8::undefined(scope).into());
+                    let mut snapshot = crate::exception_reporting::runtime_exception_snapshot(
+                        scope,
+                        reason,
+                        !allows_default,
+                    );
+                    snapshot.message = format!(
+                        "Uncaught (in promise) {}",
+                        snapshot
+                            .message
+                            .strip_prefix("Uncaught ")
+                            .unwrap_or(&snapshot.message)
+                    );
+                    if allows_default {
+                        log_unhandled_promise_rejection(&snapshot);
+                    }
+                    unsafe { &*host_ptr }.append_live_turn_observation(
+                        crate::runtime::RendererProtocolObservation::RuntimeException(snapshot),
+                    );
                 }
             });
     }

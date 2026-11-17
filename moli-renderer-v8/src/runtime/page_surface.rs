@@ -1873,6 +1873,22 @@ pub struct RendererRuntimeObservableSourceSummary {
     inspector_issues: Vec<moli_page_types::InspectorIssueSnapshot>,
 }
 
+/// An exception diagnostic reported by a browser realm.
+///
+/// Locations use the one-based ErrorEvent convention; zero means unavailable.
+/// `handled` records cancellation of the browser's default error reporting.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeExceptionSnapshot {
+    pub message: String,
+    pub filename: String,
+    pub lineno: u32,
+    pub colno: u32,
+    /// The formatted exception stack, when available.
+    pub stack: Option<String>,
+    /// Whether an event handler canceled the browser's default error reporting.
+    pub handled: bool,
+}
+
 #[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq)]
 pub struct RuntimeConsoleMessageSnapshot {
     #[serde(rename = "executionContextId")]

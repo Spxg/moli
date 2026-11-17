@@ -121,6 +121,7 @@ async fn dispatch_service_worker_fetch_event_and_handled_console_for_test(
                 panic!("unexpected service worker error while waiting for handled: {message}");
             }
             WorkerToParentMessage::Post(_)
+            | WorkerToParentMessage::RuntimeException(_)
             | WorkerToParentMessage::SubresourceNetwork(_)
             | WorkerToParentMessage::PendingSubresourceFetch(_)
             | WorkerToParentMessage::SubresourceContinue(_)

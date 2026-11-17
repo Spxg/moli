@@ -26,9 +26,10 @@ impl RendererSharedWorkerHost {
                 filename,
                 lineno,
                 colno,
+                stack,
                 event_kind,
                 phase,
-                source,
+                source: _,
             } => {
                 if phase == WorkerErrorPhase::Bootstrap {
                     if event_kind == WorkerParentErrorEventKind::ErrorEvent {
@@ -40,15 +41,18 @@ impl RendererSharedWorkerHost {
                     self.fail_bootstrap(message, filename, lineno, colno, event_kind);
                     return;
                 }
-                trace!(
-                    url = %script_url,
-                    message,
-                    filename,
-                    lineno,
-                    colno,
-                    ?event_kind,
-                    ?source,
-                    "dropping shared worker runtime error; SharedWorker.onerror is reserved for load and connection failures"
+                self.send_host_bridge_message(
+                    WorkerToParentMessage::RuntimeException(
+                        crate::runtime::RuntimeExceptionSnapshot {
+                            message,
+                            filename,
+                            lineno,
+                            colno,
+                            stack,
+                            handled: false,
+                        },
+                    ),
+                    script_url,
                 );
             }
             WorkerToParentMessage::SharedWorkerClosed => {
@@ -139,6 +143,9 @@ impl RendererSharedWorkerHost {
             }
             WorkerToParentMessage::RuntimeInspectorMessages(messages) => {
                 self.record_runtime_inspector_messages_if_running(messages, script_url);
+            }
+            message @ WorkerToParentMessage::RuntimeException(_) => {
+                self.send_host_bridge_message(message, script_url);
             }
             message @ WorkerToParentMessage::Console(_) => {
                 if let WorkerToParentMessage::Console(console) = &message {

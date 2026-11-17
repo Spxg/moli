@@ -633,6 +633,7 @@ pub(crate) fn dispatch_shared_worker_client_error<'s>(
     scope: &mut v8::PinScope<'s, '_>,
     worker: v8::Local<'s, v8::Object>,
     error_event: &SharedWorkerClientError,
+    host_ptr: *mut crate::native_bridge::PageScriptHost,
 ) -> bool {
     let error = v8::null(scope).into();
     dispatch_shared_worker_error_event(
@@ -644,6 +645,7 @@ pub(crate) fn dispatch_shared_worker_client_error<'s>(
         error_event.colno(),
         error,
         error_event.event_kind(),
+        host_ptr,
     )
 }
 
@@ -656,6 +658,7 @@ fn dispatch_shared_worker_error_event<'s>(
     colno: u32,
     error: v8::Local<'s, v8::Value>,
     event_kind: crate::worker::WorkerParentErrorEventKind,
+    host_ptr: *mut crate::native_bridge::PageScriptHost,
 ) -> bool {
     let event = match event_kind {
         // Fetch/parse failures fire a plain Event with the default flags.
@@ -668,8 +671,20 @@ fn dispatch_shared_worker_error_event<'s>(
     };
     let Some(event) = event else { return false };
     crate::context_bootstrap::mark_event_trusted(scope, event);
-    crate::context_bootstrap::dispatch_simple_event_target_event_collecting_errors(
+    let result = crate::context_bootstrap::dispatch_simple_event_target_event_collecting_errors(
         scope, worker, "error", event, None,
-    )
-    .dispatched
+    );
+    unsafe { &*host_ptr }.append_live_turn_observation(
+        crate::runtime::RendererProtocolObservation::RuntimeException(
+            crate::runtime::RuntimeExceptionSnapshot {
+                message: message.to_owned(),
+                filename: filename.to_owned(),
+                lineno,
+                colno,
+                stack: None,
+                handled: !result.uncanceled,
+            },
+        ),
+    );
+    result.dispatched
 }

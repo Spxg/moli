@@ -153,6 +153,7 @@ impl ScriptVm {
                         } => {
                             super::dedicated_worker_error_dispatch::dispatch_script_load_failure(
                                 scope,
+                                host_ptr,
                                 target.wrapper,
                                 &error_message,
                                 &script_url,
@@ -173,6 +174,7 @@ impl ScriptVm {
                                     filename,
                                     lineno,
                                     colno,
+                                    stack,
                                     event_kind,
                                     phase,
                                     source,
@@ -181,6 +183,7 @@ impl ScriptVm {
                                     filename,
                                     lineno,
                                     colno,
+                                    stack,
                                     event_kind,
                                     phase,
                                     source,
@@ -207,6 +210,7 @@ impl ScriptVm {
                                     filename,
                                     lineno,
                                     colno,
+                                    stack,
                                     event_kind,
                                     phase,
                                     ..
@@ -220,6 +224,7 @@ impl ScriptVm {
                                             filename,
                                             lineno: *lineno,
                                             colno: *colno,
+                                            stack: stack.as_deref(),
                                             event_kind: *event_kind,
                                             phase: *phase,
                                         },

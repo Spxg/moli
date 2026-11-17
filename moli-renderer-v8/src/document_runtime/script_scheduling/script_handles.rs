@@ -199,14 +199,25 @@ impl DocumentRuntime {
         host_ptr: *mut PageScriptHost,
         task: &ScriptEventTask,
     ) -> std::result::Result<(), String> {
-        dispatch_script_event(
+        let result = dispatch_script_event(
             &self.dom_host,
             self.script_lifecycle.scripts(),
             &mut self.events,
             scope,
             host_ptr,
             task,
-        )
+        );
+        // Resource load errors use a non-cancelable script-element Event instead
+        // of Window's ErrorEvent, but embedders still need its failure details.
+        if let Some(failure) = &task.failure {
+            unsafe { &*host_ptr }.append_live_turn_observation(
+                crate::runtime::RendererProtocolObservation::ScriptLoadFailure {
+                    message: failure.message.clone(),
+                    url: failure.url.clone(),
+                },
+            );
+        }
+        result
     }
 
     pub(crate) fn resolve_host_script_handle(&self, handle: &str) -> Option<DomHandle> {

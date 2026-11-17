@@ -428,6 +428,10 @@ fn flush_pending_worker_promise_rejections(scope: &mut v8::PinScope<'_, '_>) {
 
     for rejection in pending {
         let promise = v8::Local::new(scope, &rejection.promise);
+        // An earlier unhandledrejection listener may have handled this promise.
+        if promise.has_handler() {
+            continue;
+        }
         let reason = rejection
             .reason
             .as_ref()
@@ -442,8 +446,23 @@ fn flush_pending_worker_promise_rejections(scope: &mut v8::PinScope<'_, '_>) {
                 rejection.clone(),
             );
         }
-        if allows_default {
-            log_unhandled_promise_rejection(scope, reason);
+        let handled = !allows_default;
+        if !handled && let Some((parent_tx, script_url)) = worker_exception_report_target(scope) {
+            let reason = reason.unwrap_or_else(|| v8::undefined(scope).into());
+            let mut snapshot =
+                crate::exception_reporting::runtime_exception_snapshot(scope, reason, handled);
+            snapshot.message = format!(
+                "Uncaught (in promise) {}",
+                snapshot
+                    .message
+                    .strip_prefix("Uncaught ")
+                    .unwrap_or(&snapshot.message)
+            );
+            if snapshot.filename.is_empty() {
+                snapshot.filename = script_url;
+            }
+            log_unhandled_promise_rejection(&snapshot);
+            let _ = parent_tx.send(WorkerToParentMessage::RuntimeException(snapshot));
         }
     }
 }
@@ -672,38 +691,6 @@ fn dispatch_worker_promise_rejection_event<'s>(
     !event_bool_property(scope, event, "defaultPrevented")
 }
 
-pub(super) fn report_exception_to_parent(
-    report: &V8ExceptionReport,
-    script_url: &str,
-    event_kind: WorkerParentErrorEventKind,
-    parent_tx: &mpsc::UnboundedSender<WorkerToParentMessage>,
-) {
-    report_exception_to_parent_with_phase(
-        report,
-        script_url,
-        event_kind,
-        WorkerErrorPhase::Runtime,
-        parent_tx,
-    );
-}
-
-pub(super) fn report_exception_to_parent_with_phase(
-    report: &V8ExceptionReport,
-    script_url: &str,
-    event_kind: WorkerParentErrorEventKind,
-    phase: WorkerErrorPhase,
-    parent_tx: &mpsc::UnboundedSender<WorkerToParentMessage>,
-) {
-    report_exception_to_parent_with_phase_and_source(
-        report,
-        script_url,
-        event_kind,
-        phase,
-        WorkerErrorSource::Runtime,
-        parent_tx,
-    );
-}
-
 pub(super) fn report_exception_to_parent_with_phase_and_source(
     report: &V8ExceptionReport,
     script_url: &str,
@@ -720,6 +707,7 @@ pub(super) fn report_exception_to_parent_with_phase_and_source(
             .unwrap_or_else(|| script_url.to_owned()),
         lineno: report.line.unwrap_or(0) as u32,
         colno: report.column.unwrap_or(0) as u32,
+        stack: report.stack.clone(),
         event_kind,
         phase,
         source,

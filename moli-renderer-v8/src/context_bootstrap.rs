@@ -559,10 +559,11 @@ pub(crate) use self::webassembly_runtime::{
 pub(crate) use self::websocket::{WebSocketDispatchResult, dispatch_websocket_event};
 pub(crate) use self::window_events::{
     clear_simple_window_event_handler_values, dispatch_window_error_event_with_details,
-    dispatch_window_promise_rejection_event, dispatch_window_report_error_message,
-    event_handler_property_is_exposed, install_simple_window_event_handlers,
-    is_window_event_handler_property, set_window_body_onerror_handler_compiled,
-    set_window_onerror_handler_value, window_body_onerror_handler_is_compiled,
+    dispatch_window_error_event_with_snapshot, dispatch_window_promise_rejection_event,
+    dispatch_window_report_error_message, event_handler_property_is_exposed,
+    install_simple_window_event_handlers, is_window_event_handler_property,
+    set_window_body_onerror_handler_compiled, set_window_onerror_handler_value,
+    window_body_onerror_handler_is_compiled,
 };
 #[cfg(test)]
 pub(crate) use self::window_lazy_surface::window_lazy_surface_diagnostics;
@@ -574,7 +575,8 @@ use self::window_runtime::global_caches_getter_callback;
 pub(crate) use self::window_template::install_window_own_template_bindings;
 pub(crate) use self::worker_host::{
     dispatch_worker_error_event_with_kind, dispatch_worker_event,
-    flush_pending_worker_messages_for_listener, worker_has_message_delivery_listener,
+    flush_pending_worker_messages_for_listener, terminate_worker_handle,
+    worker_has_message_delivery_listener,
 };
 pub(crate) use self::worker_location_runtime::install_worker_location_runtime_state;
 pub(super) use super::{

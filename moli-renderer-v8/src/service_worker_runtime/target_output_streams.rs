@@ -5,8 +5,8 @@ use parking_lot::Mutex;
 use crate::runtime::{
     PendingRendererOutputRecord, RendererBrowserContextRuntimeId, RendererOutputRecord,
     RendererOutputStreamCloseReason, RendererOutputStreamIdentity,
-    RendererOutputTransportSenderSlot, RendererOwnerAction, RendererServiceWorkerTargetEvent,
-    RendererTurnOutputJournal,
+    RendererOutputTransportSenderSlot, RendererOwnerAction, RendererProtocolObservation,
+    RendererServiceWorkerTargetEvent, RendererTurnOutputJournal, RuntimeExceptionSnapshot,
 };
 
 use super::ids::ServiceWorkerVersionId;
@@ -90,6 +90,28 @@ impl ServiceWorkerTargetOutputStreams {
             .cloned()
             .expect("ServiceWorker target output requires a live version stream");
         journal.publish_record(Self::record(event));
+    }
+
+    pub(super) fn publish_exception(
+        &self,
+        version_id: ServiceWorkerVersionId,
+        event: RendererServiceWorkerTargetEvent,
+        exception: RuntimeExceptionSnapshot,
+    ) {
+        let journal = self
+            .journal(version_id)
+            .expect("ServiceWorker exception output requires a live version stream");
+        // Keep target-specific CDP reporting while exposing the same captured
+        // exception through the common diagnostic channel used by embedders.
+        journal.publish_record(Self::record(event));
+        journal.publish_record(
+            PendingRendererOutputRecord::observation(
+                None,
+                RendererProtocolObservation::RuntimeException(exception),
+            )
+            .resolve()
+            .expect("ServiceWorker exception output must have resolved source identity"),
+        );
     }
 
     pub(super) fn journal(

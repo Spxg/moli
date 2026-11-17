@@ -125,6 +125,23 @@ impl ScriptVm {
             });
         }
 
+        let exception = match &event {
+            WorkerRuntimeEvent::Message { message, .. }
+            | WorkerRuntimeEvent::SharedWorkerMessage { message, .. } => match message.as_ref() {
+                WorkerToParentMessage::RuntimeException(exception) => Some(exception.clone()),
+                _ => None,
+            },
+            WorkerRuntimeEvent::HostBridgeDrained { .. } => None,
+        };
+        if let Some(exception) = exception {
+            self._context_host
+                .borrow_mut()
+                .append_live_turn_observation(
+                    crate::runtime::RendererProtocolObservation::RuntimeException(exception),
+                );
+            return Ok(WorkerHostBridgeBodyEffect::StateAppliedWithoutPageContext);
+        }
+
         let console_message = match &event {
             WorkerRuntimeEvent::SharedWorkerMessage { message, .. } => match message.as_ref() {
                 WorkerToParentMessage::Console(message) => Some(message.clone()),
@@ -322,6 +339,7 @@ impl ScriptVm {
             WorkerToParentMessage::Post(_)
             | WorkerToParentMessage::Error { .. }
             | WorkerToParentMessage::Console(_)
+            | WorkerToParentMessage::RuntimeException(_)
             | WorkerToParentMessage::RuntimeInspectorMessages(_)
             | WorkerToParentMessage::ServiceWorkerLifecycleCompleted(_)
             | WorkerToParentMessage::ServiceWorkerFetchCompleted(_)

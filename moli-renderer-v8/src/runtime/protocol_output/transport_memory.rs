@@ -188,6 +188,14 @@ fn observation_transport_charge_bytes(observation: &RendererProtocolObservation)
                 .saturating_add(console.stack.as_deref().map(string_charge).unwrap_or(0))
                 .saturating_add(args)
         }
+        RendererProtocolObservation::RuntimeException(exception) => {
+            string_charge(&exception.message)
+                .saturating_add(string_charge(&exception.filename))
+                .saturating_add(exception.stack.as_deref().map(string_charge).unwrap_or(0))
+        }
+        RendererProtocolObservation::ScriptLoadFailure { message, url } => {
+            string_charge(message).saturating_add(string_charge(url))
+        }
         RendererProtocolObservation::InspectorIssue { issue, .. } => {
             issue.renderer_transport_charge_bytes()
         }

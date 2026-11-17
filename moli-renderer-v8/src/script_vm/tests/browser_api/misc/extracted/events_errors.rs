@@ -553,6 +553,28 @@ fn exec_with_script_url_sets_outer_error_stack_source_name() {
     );
 }
 #[test]
+fn reporting_a_listener_exception_reads_its_stack_once() {
+    let mut vm = new_storage_test_vm("https://example.com/");
+    let reads = vm
+        .eval(
+            r#"
+            (() => {
+              let reads = 0;
+              const target = new EventTarget();
+              target.addEventListener("probe", () => {
+                throw Object.defineProperty(new Error("original"), "stack", {
+                  get() { reads++; return ""; }
+                });
+              });
+              target.dispatchEvent(new Event("probe"));
+              return reads;
+            })()
+            "#,
+        )
+        .expect("listener exception should be reported");
+    assert_eq!(reads, "1");
+}
+#[test]
 fn console_debug_is_present_and_does_not_double_read_error_stack() {
     let mut vm = new_storage_test_vm("https://example.com/");
 

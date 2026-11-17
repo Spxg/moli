@@ -30,6 +30,26 @@ pub(super) enum CallbackExceptionLogLevel {
 }
 
 impl V8ExceptionReport {
+    pub(crate) fn runtime_snapshot(
+        &self,
+        handled: bool,
+    ) -> crate::runtime::RuntimeExceptionSnapshot {
+        crate::runtime::RuntimeExceptionSnapshot {
+            message: self.summary.clone(),
+            filename: self.source.clone().unwrap_or_default(),
+            lineno: self
+                .line
+                .and_then(|value| u32::try_from(value).ok())
+                .unwrap_or(0),
+            colno: self
+                .column
+                .and_then(|value| u32::try_from(value).ok())
+                .unwrap_or(0),
+            stack: if handled { None } else { self.stack.clone() },
+            handled,
+        }
+    }
+
     pub(super) fn formatted_error(&self, callback_kind: &str, callback_name: &str) -> String {
         let location = match (&self.source, self.line, self.column) {
             (Some(source), Some(line), Some(column)) => format!("{source}:{line}:{column}"),
@@ -42,26 +62,6 @@ impl V8ExceptionReport {
             self.summary
         )
     }
-}
-
-fn fill_location_from_stack_trace(
-    scope: &mut v8::PinScope<'_, '_>,
-    report: &mut V8ExceptionReport,
-    stack_trace: v8::Local<'_, v8::StackTrace>,
-) {
-    // Do not query stack-frame location metadata here.
-    //
-    // We previously tried to backfill `report.source` from the top frame via
-    // `StackFrame::GetScriptNameOrSourceURL()`, but some promise-rejection
-    // paths can surface a stack frame object that crashes inside V8 when that
-    // metadata accessor runs. The Feishu article crash reproduced this as a
-    // native SIGSEGV during unhandled promise rejection reporting.
-    //
-    // Stable location data should come from `v8::Message` when available. When
-    // it is not, we still keep the textual stack trace, but we intentionally
-    // skip best-effort frame metadata probing rather than crash the process
-    // while trying to print an error.
-    let _ = (scope, report, stack_trace);
 }
 
 fn local_value_to_string<'s>(
@@ -110,10 +110,72 @@ fn exception_stack_property<'s>(
     scope: &mut v8::PinScope<'s, '_>,
     exception: v8::Local<'s, v8::Value>,
 ) -> Option<String> {
+    exception_property_string(scope, exception, "stack").filter(|stack| !stack.is_empty())
+}
+
+const SYNTHETIC_REPORTING_EXCEPTION_SLOT: &str = "moliSyntheticReportingException";
+
+pub(crate) fn mark_synthetic_reporting_exception<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    exception: v8::Local<'s, v8::Value>,
+) {
+    if let Ok(object) = v8::Local::<v8::Object>::try_from(exception) {
+        crate::util::set_private_value(
+            scope,
+            object,
+            SYNTHETIC_REPORTING_EXCEPTION_SLOT,
+            v8::Boolean::new(scope, true).into(),
+        );
+    }
+}
+
+/// Capture a diagnostic stack only after error-event cancellation was checked.
+/// Arbitrary thrown objects and proxies must not acquire observable property reads.
+pub(crate) fn exception_stack_snapshot<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    exception: v8::Local<'s, v8::Value>,
+) -> Option<String> {
+    if !exception.is_native_error() {
+        return None;
+    }
     let object = v8::Local::<v8::Object>::try_from(exception).ok()?;
-    let stack_key = v8str(scope, "stack");
-    let stack = object.get(scope, stack_key.into())?;
-    local_value_to_string(scope, stack).filter(|stack| !stack.is_empty())
+    if crate::util::get_private_value(scope, object, SYNTHETIC_REPORTING_EXCEPTION_SLOT)
+        .is_some_and(|value| value.is_true())
+    {
+        return None;
+    }
+    exception_stack_property(scope, exception)
+}
+
+pub(crate) fn runtime_exception_snapshot<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    reason: v8::Local<'s, v8::Value>,
+    handled: bool,
+) -> crate::runtime::RuntimeExceptionSnapshot {
+    let message = v8::Exception::create_message(scope, reason);
+    crate::runtime::RuntimeExceptionSnapshot {
+        message: message.get(scope).to_rust_string_lossy(scope),
+        filename: message
+            .get_script_resource_name(scope)
+            .filter(|value| value.is_string())
+            .map(|value| value.to_rust_string_lossy(scope))
+            .unwrap_or_default(),
+        lineno: message
+            .get_line_number(scope)
+            .and_then(|value| u32::try_from(value).ok())
+            .unwrap_or(0),
+        colno: message
+            .get_start_column()
+            .checked_add(1)
+            .and_then(|value| u32::try_from(value).ok())
+            .unwrap_or(0),
+        stack: if handled {
+            None
+        } else {
+            exception_stack_snapshot(scope, reason)
+        },
+        handled,
+    }
 }
 
 /// Module creation must not eagerly read Error.stack or call an author's
@@ -136,6 +198,7 @@ pub(super) fn build_exception_report_without_stack<'s>(
     } else {
         summary
     };
+    // Reading source names from V8 stack frames can crash during rejection reporting.
     let source = message
         .and_then(|message| message.get_script_resource_name(scope))
         .filter(|value| !value.is_null_or_undefined())
@@ -177,14 +240,11 @@ pub(super) fn build_event_handler_exception_report<'s>(
     stack_value: Option<v8::Local<'s, v8::Value>>,
 ) -> V8ExceptionReport {
     let mut report = build_exception_report_without_stack(scope, exception, message);
+    // TryCatch::stack_trace already read the thrown object's .stack getter.
     report.stack = stack_value
+        .filter(|value| !value.is_null_or_undefined())
         .and_then(|value| local_value_to_string(scope, value))
-        .filter(|stack| !stack.is_empty())
-        .or_else(|| exception.and_then(|exception| exception_stack_property(scope, exception)));
-    if let Some(stack_trace) = v8::StackTrace::current_stack_trace(scope, 32) {
-        // Preserve the existing diagnostic fallback for callers that request a stack.
-        fill_location_from_stack_trace(scope, &mut report, stack_trace);
-    }
+        .filter(|stack| !stack.is_empty());
     report
 }
 
@@ -333,25 +393,25 @@ pub(super) unsafe extern "C" fn v8_message_listener<'s>(
     let scope = &mut scope.init();
     v8::scope!(let scope, scope);
 
-    let report = build_event_handler_exception_report(scope, Some(exception), Some(message), None);
+    let mut report = build_exception_report_without_stack(scope, Some(exception), Some(message));
+    report.stack = exception_stack_property(scope, exception);
     log_v8_message_report(message.error_level(), &report);
 }
 
-pub(super) fn log_unhandled_promise_rejection<'s>(
-    scope: &mut v8::PinScope<'s, '_>,
-    reason: Option<v8::Local<'s, v8::Value>>,
-) {
-    let report = build_event_handler_exception_report(scope, reason, None, None);
-    let fields = DiagnosticLogFields::from_report(&report);
+pub(super) fn log_unhandled_promise_rejection(report: &crate::runtime::RuntimeExceptionSnapshot) {
+    let message = bounded_log_field(&report.message, LOG_SUMMARY_MAX_BYTES);
+    let source = bounded_log_field(&report.filename, LOG_SOURCE_MAX_BYTES);
     error!(
-        message = &*fields.message,
-        source = &*fields.source,
-        line = report.line.unwrap_or(0),
-        column = report.column.unwrap_or(0),
-        source_line = &*fields.source_line,
+        message = &*message,
+        source = &*source,
+        line = report.lineno,
+        column = report.colno,
+        source_line = "",
         "unhandled promise rejection"
     );
-    log_stack(DiagnosticLogLevel::Error, &report);
+    if let Some(stack) = stack_log_field(report.stack.as_deref()) {
+        error!(backtrace = &*stack, "v8 exception stack backtrace:");
+    }
 }
 
 fn bounded_log_field(value: &str, max_bytes: usize) -> Cow<'_, str> {

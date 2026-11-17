@@ -1550,6 +1550,7 @@ fn prepare_script_start_invalid_importmap_src_queues_error_and_commits_start() {
         Some(PageTask::DispatchScriptEvent(ScriptEventTask {
             kind: ScriptEventKind::Error,
             handle,
+            ..
         })) if handle == "dynamic-script-handle"
     ));
 
@@ -1813,6 +1814,7 @@ fn prepare_script_start_external_importmap_commits_error_without_script_work() {
         Some(PageTask::DispatchScriptEvent(ScriptEventTask {
             kind: ScriptEventKind::Error,
             handle,
+            ..
         })) if handle == "dynamic-script-handle"
     ));
 }
@@ -2143,6 +2145,7 @@ fn inline_module_prepared_execution_skips_load_but_keeps_error_dispatch() {
         Some(ScriptEventTask {
             kind: ScriptEventKind::Error,
             handle,
+            ..
         }) if handle == "inline-module-handle"
     ));
 }
@@ -2257,14 +2260,16 @@ fn script_event_page_tasks_preserve_production_runtime_fifo() {
         take_main_document_runtime_work(&queue).and_then(PostParsePageOwnedWork::into_page_task),
         Some(PageTask::DispatchScriptEvent(ScriptEventTask {
             kind: ScriptEventKind::Load,
-            handle
+            handle,
+            ..
         })) if handle == "external-handle"
     ));
     assert!(matches!(
         take_main_document_runtime_work(&queue).and_then(PostParsePageOwnedWork::into_page_task),
         Some(PageTask::DispatchScriptEvent(ScriptEventTask {
             kind: ScriptEventKind::Error,
-            handle
+            handle,
+            ..
         })) if handle == "external-handle"
     ));
 }
@@ -2300,7 +2305,8 @@ fn classic_script_failure_plans_only_error_task() {
         tasks.first(),
         Some(PageTask::DispatchScriptEvent(ScriptEventTask {
             kind: ScriptEventKind::Error,
-            handle
+            handle,
+            ..
         })) if handle == "classic-handle"
     ));
 }
@@ -2360,7 +2366,8 @@ fn module_graph_failure_plans_only_window_report_task() {
         tasks.get(1),
         Some(PageTask::DispatchScriptEvent(ScriptEventTask {
             kind: ScriptEventKind::Load,
-            handle
+            handle,
+            ..
         })) if handle == "module-handle"
     ));
 }
@@ -2411,6 +2418,7 @@ fn inline_module_failure_policy_never_schedules_load() {
         Some(PageTask::DispatchScriptEvent(ScriptEventTask {
             kind: ScriptEventKind::Error,
             handle,
+            ..
         })) if handle == "inline-module-failure-handle"
     ));
 }
@@ -2461,7 +2469,8 @@ fn module_top_level_load_failure_plans_only_error_task() {
         tasks.first(),
         Some(PageTask::DispatchScriptEvent(ScriptEventTask {
             kind: ScriptEventKind::Error,
-            handle
+            handle,
+            ..
         })) if handle == "module-load-handle"
     ));
 }
@@ -2512,7 +2521,8 @@ fn module_tree_load_failure_plans_only_error_task() {
         tasks.first(),
         Some(PageTask::DispatchScriptEvent(ScriptEventTask {
             kind: ScriptEventKind::Error,
-            handle
+            handle,
+            ..
         })) if handle == "module-tree-load-handle"
     ));
 }
@@ -2691,7 +2701,8 @@ fn external_importmap_failure_plans_only_error_task() {
         tasks.first(),
         Some(PageTask::DispatchScriptEvent(ScriptEventTask {
             kind: ScriptEventKind::Error,
-            handle
+            handle,
+            ..
         })) if handle == "external-importmap-handle"
     ));
 }

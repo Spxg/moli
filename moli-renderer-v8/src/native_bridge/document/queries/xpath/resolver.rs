@@ -4,7 +4,7 @@ use crate::{
     callback_invocation::{
         SynchronousWebIdlCallbackOutcome, invoke_synchronous_webidl_callback_interface,
     },
-    context_bootstrap::dispatch_window_error_event_with_details,
+    context_bootstrap::dispatch_window_error_event_with_snapshot,
     exception_reporting::{CallbackExceptionLogLevel, V8ExceptionReport, log_callback_exception},
     native_bridge::{PageScriptHost, WindowExecutionContextIdentity},
     util::context_host_ptr_from_global_bridge,
@@ -78,13 +78,10 @@ impl<'s, 'i> V8XPathNamespaceResolver<'s, 'i> {
             .exception
             .as_ref()
             .map(|exception| v8::Local::new(scope, exception));
-        let _ = dispatch_window_error_event_with_details(
+        let _ = dispatch_window_error_event_with_snapshot(
             scope,
             host_ptr,
-            &report.summary,
-            report.source.as_deref().unwrap_or(""),
-            report.line.unwrap_or(0) as u32,
-            report.column.unwrap_or(0) as u32,
+            report.runtime_snapshot(false),
             error_value,
         );
     }

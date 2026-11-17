@@ -36,6 +36,7 @@ pub(crate) use dispatch::{
     flush_pending_worker_messages_for_listener, worker_has_message_delivery_listener,
 };
 pub(super) use error_event::new_worker_host_error_event;
+pub(crate) use methods::terminate_worker_handle;
 pub(super) use methods::{worker_post_message_callback, worker_terminate_callback};
 
 #[cfg(test)]

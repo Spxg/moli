@@ -70,9 +70,16 @@ pub(crate) enum ScriptEventKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ScriptLoadFailure {
+    pub(crate) message: String,
+    pub(crate) url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ScriptEventTask {
     pub(crate) kind: ScriptEventKind,
     pub(crate) handle: String,
+    pub(crate) failure: Option<ScriptLoadFailure>,
 }
 
 impl ScriptEventTask {
@@ -80,6 +87,7 @@ impl ScriptEventTask {
         Self {
             kind,
             handle: handle.into(),
+            failure: None,
         }
     }
 
@@ -1108,9 +1116,14 @@ impl HostScriptScheduler {
         if let Some(handle) = handle {
             match policy.error_event {
                 ScriptEventDispatchPolicy::Dispatch => {
-                    tasks.push(PostParseLifecycleWork::DispatchScriptEvent(
-                        ScriptEventTask::new(ScriptEventKind::Error, handle),
-                    ));
+                    let mut task = ScriptEventTask::new(ScriptEventKind::Error, handle);
+                    if !policy.report_window_failure {
+                        task.failure = Some(ScriptLoadFailure {
+                            message: message.to_string(),
+                            url: filename.unwrap_or_default().to_owned(),
+                        });
+                    }
+                    tasks.push(PostParseLifecycleWork::DispatchScriptEvent(task));
                 }
                 ScriptEventDispatchPolicy::Skip(reason) => {
                     debug!(

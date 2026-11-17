@@ -320,6 +320,7 @@ async fn worker_handler_added_during_unhandled_rejection_suppresses_rejectionhan
         r#"
         const events = [];
         const rejected = Promise.reject("handled-during-worker-notification");
+        const next = Promise.reject("handled-before-its-notification");
         onunhandledrejection = event => {
             event.preventDefault();
             events.push(event.type);
@@ -328,6 +329,7 @@ async fn worker_handler_added_during_unhandled_rejection_suppresses_rejectionhan
                     ? "handler"
                     : "wrong-reason");
             });
+            next.catch(() => {});
             setTimeout(() => {
                 postMessage(events);
                 close();
@@ -957,12 +959,8 @@ async fn nested_worker_script_load_failure_is_async_error_event() {
         format!("{base_url}/parent.js"),
     );
 
-    let msg = timeout(TIMEOUT, handle.recv())
-        .await
-        .expect("timed out")
-        .expect("channel closed");
     assert_eq!(
-        expect_post_json(msg),
+        recv_post_json(&mut handle).await,
         r#"{"constructed":true,"type":"error","intrinsicEvent":true,"target":true,"trusted":true,"flags":[false,false,false,false],"hasErrorDetails":false,"globalErrors":0}"#
     );
     timeout(TIMEOUT, server)
@@ -1175,6 +1173,7 @@ async fn worker_error_report_ignores_throwing_accessors() {
         | WorkerToParentMessage::WebSocketLifecycle(_)
         | WorkerToParentMessage::WebSocketFrame(_)
         | WorkerToParentMessage::Console(_)
+        | WorkerToParentMessage::RuntimeException(_)
         | WorkerToParentMessage::RuntimeInspectorMessages(_)
         | WorkerToParentMessage::ServiceWorkerLifecycleCompleted(_)
         | WorkerToParentMessage::ServiceWorkerFetchCompleted(_)

@@ -7,7 +7,7 @@
 use anyhow::Result;
 
 use super::ScriptVm;
-use crate::context_bootstrap::dispatch_window_error_event_with_details;
+use crate::context_bootstrap::dispatch_window_error_event_with_snapshot;
 use crate::exception_reporting::{V8ExceptionReport, log_uncaught_script_exception};
 
 impl ScriptVm {
@@ -32,13 +32,10 @@ impl ScriptVm {
                 .exception
                 .as_ref()
                 .map(|exception| v8::Local::new(scope, exception));
-            let dispatch_result = dispatch_window_error_event_with_details(
+            let dispatch_result = dispatch_window_error_event_with_snapshot(
                 scope,
                 host_ptr,
-                &report.summary,
-                report.source.as_deref().unwrap_or(""),
-                report.line.unwrap_or(0) as u32,
-                report.column.unwrap_or(0) as u32,
+                report.runtime_snapshot(false),
                 error_value,
             )
             .map_err(anyhow::Error::msg);

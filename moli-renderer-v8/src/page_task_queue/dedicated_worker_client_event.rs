@@ -68,6 +68,7 @@ pub(crate) enum RendererDedicatedWorkerMessageEvent {
         filename: String,
         lineno: u32,
         colno: u32,
+        stack: Option<String>,
         event_kind: WorkerParentErrorEventKind,
         phase: WorkerErrorPhase,
         source: WorkerErrorSource,

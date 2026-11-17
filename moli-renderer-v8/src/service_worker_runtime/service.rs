@@ -12,7 +12,7 @@ use crate::{
         RendererBrowserContextRuntime, RendererRuntimeInspectorMessage,
         RendererServiceWorkerConsoleMessage, RendererServiceWorkerExceptionMessage,
         RendererServiceWorkerFetchDiagnostic, RendererServiceWorkerRunIdentity,
-        RendererWorkerContextRuntime,
+        RendererWorkerContextRuntime, RuntimeExceptionSnapshot,
     },
     structured_clone::V8StructuredClonePayload,
     types::{
@@ -424,28 +424,26 @@ impl ServiceWorkerRuntimeService {
         &self,
         version_id: ServiceWorkerVersionId,
         run: RendererServiceWorkerRunIdentity,
-        message: String,
-        filename: String,
-        lineno: u32,
-        colno: u32,
+        exception: RuntimeExceptionSnapshot,
         event_kind: WorkerParentErrorEventKind,
         phase: WorkerErrorPhase,
         source: WorkerErrorSource,
     ) {
         let mut state = self.inner.state.lock();
-        if state.observes_live_target_run(version_id, &run) {
+        if !exception.handled && state.observes_live_target_run(version_id, &run) {
             state.record_target_exception_message(
                 version_id,
                 run,
                 RendererServiceWorkerExceptionMessage {
-                    message,
-                    filename,
-                    lineno,
-                    colno,
+                    message: exception.message.clone(),
+                    filename: exception.filename.clone(),
+                    lineno: exception.lineno,
+                    colno: exception.colno,
                     event_kind: worker_error_event_kind_label(event_kind).to_owned(),
                     phase: worker_error_phase_label(phase).to_owned(),
                     source: worker_error_source_label(source).to_owned(),
                 },
+                exception,
             );
         }
     }

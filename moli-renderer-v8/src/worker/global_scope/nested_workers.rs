@@ -79,6 +79,7 @@ pub(in crate::worker) struct NestedWorkerUnhandledError {
     pub(in crate::worker) filename: String,
     pub(in crate::worker) lineno: u32,
     pub(in crate::worker) colno: u32,
+    pub(in crate::worker) stack: Option<String>,
     pub(in crate::worker) event_kind: crate::worker::handle::WorkerParentErrorEventKind,
 }
 
@@ -131,6 +132,7 @@ pub(in crate::worker) fn dispatch_nested_worker_event(
             filename,
             lineno,
             colno,
+            stack,
             event_kind,
             phase,
             ..
@@ -139,6 +141,20 @@ pub(in crate::worker) fn dispatch_nested_worker_event(
             // Bootstrap failures only fire an Event at the child Worker. Only
             // uncanceled runtime errors propagate to its owner's global scope.
             let propagate = unhandled && *phase == crate::worker::handle::WorkerErrorPhase::Runtime;
+            if unhandled && !propagate {
+                let snapshot = crate::runtime::RuntimeExceptionSnapshot {
+                    message: error_message.clone(),
+                    filename: filename.clone(),
+                    lineno: *lineno,
+                    colno: *colno,
+                    stack: stack.clone(),
+                    handled: false,
+                };
+                let _ = state
+                    .borrow()
+                    .parent_tx
+                    .send(crate::worker::handle::WorkerToParentMessage::RuntimeException(snapshot));
+            }
             NestedWorkerDispatchResult {
                 dispatched: true,
                 unhandled_error: propagate.then(|| NestedWorkerUnhandledError {
@@ -146,6 +162,7 @@ pub(in crate::worker) fn dispatch_nested_worker_event(
                     filename: filename.clone(),
                     lineno: *lineno,
                     colno: *colno,
+                    stack: stack.clone(),
                     event_kind: *event_kind,
                 }),
             }
@@ -154,5 +171,17 @@ pub(in crate::worker) fn dispatch_nested_worker_event(
             dispatched: crate::context_bootstrap::dispatch_worker_event(scope, worker, message),
             unhandled_error: None,
         },
+    }
+}
+
+/// A child Worker must not outlive the WorkerGlobalScope that owns it.
+pub(in crate::worker) fn close_worker_owned_nested_workers(
+    scope: &mut v8::PinScope<'_, '_>,
+    state: &Rc<RefCell<WorkerGlobalState>>,
+) {
+    let wrappers = std::mem::take(&mut state.borrow_mut().nested_worker_wrappers);
+    for wrapper in wrappers.into_values() {
+        let worker = v8::Local::new(scope, wrapper);
+        crate::context_bootstrap::terminate_worker_handle(scope, worker);
     }
 }

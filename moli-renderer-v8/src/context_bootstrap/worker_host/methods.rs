@@ -49,23 +49,34 @@ pub(in crate::context_bootstrap) fn worker_terminate_callback<'s>(
         unsafe { &mut *host_ptr }.forget_worker(worker_id);
         return;
     }
-    let Some(handle_ptr) = super::constructor::get_worker_handle(scope, worker) else {
+    if !terminate_worker_handle(scope, worker) {
         return;
-    };
-    let handle = unsafe { Box::from_raw(handle_ptr) };
-    handle.terminate();
+    }
     if let Some(worker_id) = super::constructor::worker_id(scope, worker) {
         let _ = crate::worker::forget_nested_worker_context(scope, worker_id);
     }
+    if let Some(worker_id) = super::constructor::worker_id(scope, worker)
+        && let Some(host_ptr) = super::context_host_ptr_from_global_bridge(scope)
+    {
+        unsafe { &mut *host_ptr }.forget_worker(worker_id);
+    }
+}
+
+/// Release a nested Worker's native handle before its owning realm disappears.
+/// Clearing the private slot also makes repeated termination harmless.
+pub(crate) fn terminate_worker_handle<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    worker: v8::Local<'s, v8::Object>,
+) -> bool {
+    let Some(handle_ptr) = super::constructor::get_worker_handle(scope, worker) else {
+        return false;
+    };
     super::set_private_value(
         scope,
         worker,
         super::WORKER_HANDLE_SLOT,
         v8::null(scope).into(),
     );
-    if let Some(worker_id) = super::constructor::worker_id(scope, worker)
-        && let Some(host_ptr) = super::context_host_ptr_from_global_bridge(scope)
-    {
-        unsafe { &mut *host_ptr }.forget_worker(worker_id);
-    }
+    drop(unsafe { Box::from_raw(handle_ptr) });
+    true
 }

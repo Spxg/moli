@@ -5,7 +5,7 @@ use crate::v8_execution_watchdog::{
 };
 use crate::{
     context_bootstrap::{
-        CHILD_BROWSING_CONTEXT_HANDLE_SLOT, dispatch_window_error_event_with_details,
+        CHILD_BROWSING_CONTEXT_HANDLE_SLOT, dispatch_window_error_event_with_snapshot,
     },
     document_runtime::DomHandle,
     native_bridge::{
@@ -1392,19 +1392,23 @@ fn report_window_timer_exception<'s>(
         && let Some(event) = timer_callback_error_event_from_report(scope, report)
     {
         unsafe { &mut *host_ptr }.dispatch_child_window_event(scope, handle, "error", event);
+        let handled =
+            crate::context_bootstrap::event_bool_attribute(scope, event, "defaultPrevented");
+        unsafe { &*host_ptr }.append_live_turn_observation(
+            crate::runtime::RendererProtocolObservation::RuntimeException(
+                report.runtime_snapshot(handled),
+            ),
+        );
         return;
     }
     let error_value = report
         .exception
         .as_ref()
         .map(|exception| v8::Local::new(scope, exception));
-    let _ = dispatch_window_error_event_with_details(
+    let _ = dispatch_window_error_event_with_snapshot(
         scope,
         host_ptr,
-        &report.summary,
-        report.source.as_deref().unwrap_or(""),
-        report.line.unwrap_or(0) as u32,
-        report.column.unwrap_or(0) as u32,
+        report.runtime_snapshot(false),
         error_value,
     );
 }

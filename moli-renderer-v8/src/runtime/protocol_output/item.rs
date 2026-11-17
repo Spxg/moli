@@ -121,6 +121,11 @@ pub enum RendererProtocolObservation {
     DomMutations(RendererDomMutationEventBatch),
     RuntimeInspector(RendererRuntimeInspectorMessageBatch),
     RuntimeConsole(crate::runtime::RuntimeConsoleMessageSnapshot),
+    RuntimeException(crate::runtime::RuntimeExceptionSnapshot),
+    ScriptLoadFailure {
+        message: String,
+        url: String,
+    },
     InspectorIssue {
         source_document: RendererDocumentLifecycleIdentity,
         issue: moli_page_types::InspectorIssueSnapshot,

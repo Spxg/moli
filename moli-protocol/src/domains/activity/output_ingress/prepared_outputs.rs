@@ -351,6 +351,10 @@ impl PreparedProtocolOutputs {
                 )
                 .append_to_output_sink(&mut prepared);
             }
+            // DevTools exceptions already arrive through V8's inspector channel.
+            // This observation is for browser embedders without an inspector session.
+            RendererProtocolObservation::RuntimeException(_)
+            | RendererProtocolObservation::ScriptLoadFailure { .. } => {}
             RendererProtocolObservation::InspectorIssue {
                 source_document,
                 issue,

@@ -67,7 +67,7 @@ impl ScriptVm {
                 Ok(SharedWorkerClientEventBodyEffect::EndpointClosed)
             }
             SharedWorkerClientEvent::Error(error) => {
-                self.with_default_context_scope(|scope, _host_ptr| {
+                self.with_default_context_scope(|scope, host_ptr| {
                     let endpoint_disposition = error.endpoint_disposition();
                     let (owner_scope, wrapper, applied_endpoint_disposition) = context_host
                         .borrow_mut()
@@ -85,7 +85,7 @@ impl ScriptVm {
                     let previous_owner_context = owner_scope.enter(scope);
                     let callback_dispatched =
                         crate::context_bootstrap::dispatch_shared_worker_client_error(
-                            scope, wrapper, &error,
+                            scope, wrapper, &error, host_ptr,
                         );
                     if callback_dispatched {
                         owner_scope.defer_restore(scope, previous_owner_context);

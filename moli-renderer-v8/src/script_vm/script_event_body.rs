@@ -54,12 +54,45 @@ impl ScriptVm {
         filename: Option<&str>,
         error_constructor: Option<crate::types::ScriptErrorConstructorKind>,
     ) -> Result<()> {
+        // An evaluated module keeps the original thrown value, including a TLA
+        // rejection, in its V8 module record. Read it only at the existing error
+        // reporting boundary, after module evaluation has finished unwinding.
+        let failed_module = filename
+            .filter(|_| message.starts_with("NativeEsmEvaluateFailed:"))
+            .and_then(|filename| url::Url::parse(filename).ok())
+            .and_then(|url| {
+                self.document_runtime
+                    .native_module_entry_id(&crate::module_runtime::ModuleMapKey::java_script(url))
+            })
+            .and_then(|entry| self.document_runtime.native_compiled_module(entry));
         self.with_default_context_scope(|scope, host_ptr| {
+            if let Some(module) = &failed_module {
+                let module = v8::Local::new(scope, module);
+                if module.get_status() == v8::ModuleStatus::Errored {
+                    let reason = module.get_exception();
+                    let mut snapshot =
+                        crate::exception_reporting::runtime_exception_snapshot(scope, reason, true);
+                    if snapshot.filename.is_empty() {
+                        snapshot.filename = filename.unwrap_or_default().to_owned();
+                    }
+                    return dispatch_window_error_event_with_details(
+                        scope,
+                        host_ptr,
+                        &snapshot.message,
+                        &snapshot.filename,
+                        snapshot.lineno,
+                        snapshot.colno,
+                        Some(reason),
+                    )
+                    .map_err(anyhow::Error::msg);
+                }
+            }
             let global = scope.get_current_context().global(scope);
             let message_value = v8_string(scope, message)
                 .ok_or_else(|| anyhow!("failed to allocate reportError message"))?;
             let error_value =
                 window_script_failure_error_value(scope, global, error_constructor, message_value);
+            crate::exception_reporting::mark_synthetic_reporting_exception(scope, error_value);
             if let Some(filename) = filename
                 && let Some(filename_value) = v8_string(scope, filename)
                 && let Ok(error_object) = v8::Local::<v8::Object>::try_from(error_value)

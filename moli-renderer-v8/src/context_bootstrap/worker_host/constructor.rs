@@ -485,6 +485,7 @@ pub(in crate::context_bootstrap) fn worker_constructor_callback<'s>(
                                 filename: resolved_url.to_string(),
                                 lineno: 0,
                                 colno: 0,
+                                stack: None,
                                 event_kind: crate::worker::WorkerParentErrorEventKind::Event,
                                 phase: crate::worker::WorkerErrorPhase::Bootstrap,
                                 source: crate::worker::WorkerErrorSource::Runtime,

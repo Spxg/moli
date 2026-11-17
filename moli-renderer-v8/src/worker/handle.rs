@@ -208,6 +208,7 @@ pub(crate) enum WorkerToParentMessage {
         filename: String,
         lineno: u32,
         colno: u32,
+        stack: Option<String>,
         event_kind: WorkerParentErrorEventKind,
         phase: WorkerErrorPhase,
         source: WorkerErrorSource,
@@ -215,6 +216,8 @@ pub(crate) enum WorkerToParentMessage {
     /// A worker `console.*` call that should be surfaced through the owning page until
     /// workers get their own CDP targets.
     Console(WorkerConsoleMessage),
+    /// A diagnostic whose local cancellation decision is already settled.
+    RuntimeException(crate::runtime::RuntimeExceptionSnapshot),
     /// A SharedWorker global is closing and its owner service should remove the instance.
     SharedWorkerClosed,
     /// A V8 Inspector response waiting for its Worker target's concrete output

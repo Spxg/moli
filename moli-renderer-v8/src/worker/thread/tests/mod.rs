@@ -353,7 +353,8 @@ async fn recv_post_json(handle: &mut WorkerHandle) -> String {
             | WorkerToParentMessage::SubresourceContinue(_)
             | WorkerToParentMessage::WebSocketSubresource(_)
             | WorkerToParentMessage::WebSocketLifecycle(_)
-            | WorkerToParentMessage::WebSocketFrame(_) => continue,
+            | WorkerToParentMessage::WebSocketFrame(_)
+            | WorkerToParentMessage::RuntimeException(_) => continue,
             other => panic!("expected Post, got {other:?}"),
         }
     }
@@ -416,6 +417,7 @@ async fn dispatch_service_worker_lifecycle_event_for_test(
             | WorkerToParentMessage::WebSocketLifecycle(_)
             | WorkerToParentMessage::WebSocketFrame(_)
             | WorkerToParentMessage::Console(_)
+            | WorkerToParentMessage::RuntimeException(_)
             | WorkerToParentMessage::RuntimeInspectorMessages(_)
             | WorkerToParentMessage::ServiceWorkerFetchCompleted(_)
             | WorkerToParentMessage::ServiceWorkerFetchStreamStarted(_)
@@ -511,6 +513,7 @@ async fn dispatch_service_worker_fetch_event_with_request_for_test(
             | WorkerToParentMessage::WebSocketLifecycle(_)
             | WorkerToParentMessage::WebSocketFrame(_)
             | WorkerToParentMessage::Console(_)
+            | WorkerToParentMessage::RuntimeException(_)
             | WorkerToParentMessage::RuntimeInspectorMessages(_)
             | WorkerToParentMessage::ServiceWorkerLifecycleCompleted(_)
             | WorkerToParentMessage::ServiceWorkerFetchStreamStarted(_)
@@ -596,6 +599,7 @@ async fn dispatch_service_worker_message_event_object_for_test(
             | WorkerToParentMessage::WebSocketLifecycle(_)
             | WorkerToParentMessage::WebSocketFrame(_)
             | WorkerToParentMessage::Console(_)
+            | WorkerToParentMessage::RuntimeException(_)
             | WorkerToParentMessage::RuntimeInspectorMessages(_)
             | WorkerToParentMessage::ServiceWorkerLifecycleCompleted(_)
             | WorkerToParentMessage::ServiceWorkerFetchCompleted(_)
@@ -658,6 +662,7 @@ async fn dispatch_service_worker_notification_event_for_test(
             | WorkerToParentMessage::WebSocketLifecycle(_)
             | WorkerToParentMessage::WebSocketFrame(_)
             | WorkerToParentMessage::Console(_)
+            | WorkerToParentMessage::RuntimeException(_)
             | WorkerToParentMessage::RuntimeInspectorMessages(_)
             | WorkerToParentMessage::ServiceWorkerLifecycleCompleted(_)
             | WorkerToParentMessage::ServiceWorkerFetchCompleted(_)
@@ -726,6 +731,7 @@ async fn dispatch_service_worker_push_event_for_test(
             | WorkerToParentMessage::WebSocketLifecycle(_)
             | WorkerToParentMessage::WebSocketFrame(_)
             | WorkerToParentMessage::Console(_)
+            | WorkerToParentMessage::RuntimeException(_)
             | WorkerToParentMessage::RuntimeInspectorMessages(_)
             | WorkerToParentMessage::ServiceWorkerLifecycleCompleted(_)
             | WorkerToParentMessage::ServiceWorkerFetchCompleted(_)
@@ -796,6 +802,7 @@ async fn dispatch_service_worker_sync_event_for_test(
             | WorkerToParentMessage::WebSocketLifecycle(_)
             | WorkerToParentMessage::WebSocketFrame(_)
             | WorkerToParentMessage::Console(_)
+            | WorkerToParentMessage::RuntimeException(_)
             | WorkerToParentMessage::RuntimeInspectorMessages(_)
             | WorkerToParentMessage::ServiceWorkerLifecycleCompleted(_)
             | WorkerToParentMessage::ServiceWorkerFetchCompleted(_)
@@ -867,6 +874,7 @@ async fn dispatch_service_worker_periodic_sync_event_for_test(
             | WorkerToParentMessage::WebSocketLifecycle(_)
             | WorkerToParentMessage::WebSocketFrame(_)
             | WorkerToParentMessage::Console(_)
+            | WorkerToParentMessage::RuntimeException(_)
             | WorkerToParentMessage::RuntimeInspectorMessages(_)
             | WorkerToParentMessage::ServiceWorkerLifecycleCompleted(_)
             | WorkerToParentMessage::ServiceWorkerFetchCompleted(_)

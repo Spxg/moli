@@ -604,6 +604,13 @@ pub(crate) fn report_event_callback_exception<'s>(
     report: &V8ExceptionReport,
 ) {
     if event_type == "error" {
+        // HTML suppresses recursive error events while reporting an exception,
+        // but an exception thrown by an error handler still reaches the host.
+        unsafe { &*host_ptr }.append_live_turn_observation(
+            crate::runtime::RendererProtocolObservation::RuntimeException(
+                report.runtime_snapshot(false),
+            ),
+        );
         return;
     }
 
@@ -622,6 +629,13 @@ pub(crate) fn report_event_callback_exception<'s>(
         };
         if let Some(event) = event {
             unsafe { &mut *host_ptr }.dispatch_child_window_event(scope, handle, "error", event);
+            let handled =
+                crate::context_bootstrap::event_bool_attribute(scope, event, "defaultPrevented");
+            unsafe { &*host_ptr }.append_live_turn_observation(
+                crate::runtime::RendererProtocolObservation::RuntimeException(
+                    report.runtime_snapshot(handled),
+                ),
+            );
             return;
         }
     }
@@ -630,13 +644,10 @@ pub(crate) fn report_event_callback_exception<'s>(
         .exception
         .as_ref()
         .map(|exception| v8::Local::new(scope, exception));
-    let _ = dispatch_window_error_event_with_details(
+    let _ = dispatch_window_error_event_with_snapshot(
         scope,
         host_ptr,
-        &report.summary,
-        report.source.as_deref().unwrap_or(""),
-        report.line.unwrap_or(0) as u32,
-        report.column.unwrap_or(0) as u32,
+        report.runtime_snapshot(false),
         error_value,
     );
 }
